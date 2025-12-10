@@ -6,6 +6,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Generate embedding using OpenAI
+async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: text,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Embedding API error:", error);
+    throw new Error(`Embedding API failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.data[0].embedding;
+}
+
 // Document content chunks for the BAXE tender - REAL DATA from parsed documents
 const documentChunks = [
   // Nolikums - Main tender document
@@ -333,29 +357,48 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    if (!openaiApiKey) {
+      throw new Error("OPENAI_API_KEY is not configured");
+    }
 
     // Clear existing chunks
     await supabase.from("document_chunks").delete().neq("id", "00000000-0000-0000-0000-000000000000");
 
-    // Insert all chunks
+    // Prepare all chunks
     const allChunks: Array<{
       document_name: string;
       chunk_index: number;
       content: string;
       metadata: { source: string };
+      embedding: string;
     }> = [];
 
+    console.log("Generating embeddings for document chunks...");
+
     for (const doc of documentChunks) {
+      console.log(`Processing: ${doc.document_name}`);
       for (let i = 0; i < doc.chunks.length; i++) {
+        const content = doc.chunks[i];
+        
+        // Generate embedding for this chunk
+        const embedding = await generateEmbedding(content, openaiApiKey);
+        
         allChunks.push({
           document_name: doc.document_name,
           chunk_index: i,
-          content: doc.chunks[i],
+          content: content,
           metadata: { source: "tender_documents" },
+          embedding: JSON.stringify(embedding),
         });
+        
+        console.log(`  Chunk ${i + 1}/${doc.chunks.length} embedded`);
       }
     }
+
+    console.log(`Inserting ${allChunks.length} chunks with embeddings...`);
 
     const { data, error } = await supabase
       .from("document_chunks")
@@ -367,12 +410,12 @@ serve(async (req) => {
       throw error;
     }
 
-    console.log(`Successfully inserted ${data?.length || 0} document chunks`);
+    console.log(`Successfully inserted ${data?.length || 0} document chunks with embeddings`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Ielādēti ${data?.length || 0} dokumentu fragmenti no 6 dokumentiem`,
+        message: `Ielādēti ${data?.length || 0} dokumentu fragmenti ar embeddings no 6 dokumentiem`,
         chunks: data?.length || 0
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

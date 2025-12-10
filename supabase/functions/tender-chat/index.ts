@@ -53,43 +53,62 @@ serve(async (req) => {
 
     console.log("Searching for:", searchQuery);
 
-    // Extract keywords for search
-    const keywords = searchQuery
-      .toLowerCase()
-      .replace(/[?!.,]/g, "")
-      .split(" ")
-      .filter((w: string) => w.length > 2)
-      .slice(0, 5)
-      .join(" | ");
-
-    console.log("Keywords:", keywords);
-
     let contextFromDocuments = "";
     let relevantChunks: any[] = [];
 
-    // Try full-text search first
-    if (keywords) {
+    // Generate embedding for the search query
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    
+    if (OPENAI_API_KEY && searchQuery) {
       try {
-        const { data: searchResults, error: searchError } = await supabase
-          .from("document_chunks")
-          .select("document_name, content")
-          .textSearch("fts_vector", keywords, { type: "websearch", config: "simple" })
-          .limit(8);
+        console.log("Generating query embedding...");
+        const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "text-embedding-3-small",
+            input: searchQuery,
+          }),
+        });
 
-        if (searchError) {
-          console.error("FTS search error:", searchError);
-        } else if (searchResults && searchResults.length > 0) {
-          console.log(`FTS found ${searchResults.length} chunks`);
-          relevantChunks = searchResults;
+        if (embeddingResponse.ok) {
+          const embeddingData = await embeddingResponse.json();
+          const queryEmbedding = embeddingData.data[0].embedding;
+
+          // Use semantic search with the match_documents function
+          const { data: semanticResults, error: semanticError } = await supabase.rpc(
+            "match_documents",
+            {
+              query_embedding: JSON.stringify(queryEmbedding),
+              match_threshold: 0.3,
+              match_count: 10,
+            }
+          );
+
+          if (semanticError) {
+            console.error("Semantic search error:", semanticError);
+          } else if (semanticResults && semanticResults.length > 0) {
+            console.log(`Semantic search found ${semanticResults.length} chunks`);
+            relevantChunks = semanticResults.map((r: any) => ({
+              document_name: r.document_name,
+              content: r.content,
+              similarity: r.similarity,
+            }));
+          }
+        } else {
+          console.error("Embedding API error:", await embeddingResponse.text());
         }
       } catch (e) {
-        console.error("FTS exception:", e);
+        console.error("Embedding exception:", e);
       }
     }
 
-    // If no FTS results, get all chunks
+    // Fallback: get all chunks if semantic search didn't work
     if (relevantChunks.length === 0) {
-      console.log("No FTS results, fetching all chunks");
+      console.log("Semantic search unavailable, fetching all chunks");
       const { data: allChunks, error: allError } = await supabase
         .from("document_chunks")
         .select("document_name, content")

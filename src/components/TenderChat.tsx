@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: string;
@@ -261,7 +262,9 @@ export function TenderChat({ onDocumentsUsed }: TenderChatProps) {
                     : "chat-bubble-assistant"
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5">
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </div>
               </div>
               <span className="text-[10px] text-muted-foreground mt-1 px-1">
                 {message.timestamp.toLocaleTimeString("lv-LV", {

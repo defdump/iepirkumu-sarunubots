@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenderData } from "@/data/tenderData";
 import { SeedButton } from "@/components/SeedButton";
+import { DocumentUpload } from "@/components/DocumentUpload";
 import { cn } from "@/lib/utils";
 
 // Map database document names to UI document names
@@ -105,6 +106,9 @@ export function TenderDetails({ highlightedDocuments = [] }: TenderDetailsProps)
                 </div>
               </CardContent>
             </Card>
+
+            {/* Document Upload */}
+            <DocumentUpload />
 
             {/* Documents */}
             <Card>

@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.seed-documents]
 verify_jwt = false
+
+[functions.upload-document]
+verify_jwt = false

@@ -42,46 +42,65 @@ serve(async (req) => {
 
     console.log("Searching for:", searchQuery);
 
-    // Search for relevant document chunks using full-text search
-    const { data: searchResults, error: searchError } = await supabase
-      .rpc("search_documents", {
-        search_query: searchQuery,
-        max_results: 8,
-      });
+    // Extract keywords for search
+    const keywords = searchQuery
+      .toLowerCase()
+      .replace(/[?!.,]/g, "")
+      .split(" ")
+      .filter((w: string) => w.length > 2)
+      .slice(0, 5)
+      .join(" | ");
+
+    console.log("Keywords:", keywords);
 
     let contextFromDocuments = "";
-    
-    if (searchError) {
-      console.error("Search error:", searchError);
-      // Fallback: get all chunks
-      const { data: allChunks } = await supabase
+    let relevantChunks: any[] = [];
+
+    // Try full-text search first
+    if (keywords) {
+      try {
+        const { data: searchResults, error: searchError } = await supabase
+          .from("document_chunks")
+          .select("document_name, content")
+          .textSearch("fts_vector", keywords, { type: "websearch", config: "simple" })
+          .limit(8);
+
+        if (searchError) {
+          console.error("FTS search error:", searchError);
+        } else if (searchResults && searchResults.length > 0) {
+          console.log(`FTS found ${searchResults.length} chunks`);
+          relevantChunks = searchResults;
+        }
+      } catch (e) {
+        console.error("FTS exception:", e);
+      }
+    }
+
+    // If no FTS results, get all chunks
+    if (relevantChunks.length === 0) {
+      console.log("No FTS results, fetching all chunks");
+      const { data: allChunks, error: allError } = await supabase
         .from("document_chunks")
         .select("document_name, content")
-        .limit(10);
-      
-      if (allChunks && allChunks.length > 0) {
-        contextFromDocuments = allChunks
-          .map((chunk) => `[${chunk.document_name}]\n${chunk.content}`)
-          .join("\n\n---\n\n");
+        .order("document_name")
+        .limit(20);
+
+      if (allError) {
+        console.error("All chunks error:", allError);
+      } else if (allChunks) {
+        console.log(`Fetched ${allChunks.length} total chunks`);
+        relevantChunks = allChunks;
       }
-    } else if (searchResults && searchResults.length > 0) {
-      console.log(`Found ${searchResults.length} relevant chunks`);
-      contextFromDocuments = searchResults
-        .map((result: any) => `[${result.document_name}] (atbilstība: ${(result.rank * 100).toFixed(1)}%)\n${result.content}`)
+    }
+
+    // Build context string
+    if (relevantChunks.length > 0) {
+      contextFromDocuments = relevantChunks
+        .map((chunk) => `[${chunk.document_name}]\n${chunk.content}`)
         .join("\n\n---\n\n");
+      console.log(`Context built with ${relevantChunks.length} chunks, length: ${contextFromDocuments.length}`);
     } else {
-      console.log("No search results, fetching all chunks");
-      // If no results, get all chunks
-      const { data: allChunks } = await supabase
-        .from("document_chunks")
-        .select("document_name, content")
-        .limit(15);
-      
-      if (allChunks && allChunks.length > 0) {
-        contextFromDocuments = allChunks
-          .map((chunk) => `[${chunk.document_name}]\n${chunk.content}`)
-          .join("\n\n---\n\n");
-      }
+      console.log("WARNING: No chunks available for context!");
     }
 
     // First, get reasoning
@@ -98,8 +117,8 @@ serve(async (req) => {
             role: "system",
             content: `Tu esi analītisks asistents. Izanalizē lietotāja jautājumu par iepirkumu un padomā, kā uz to atbildēt.
 
-Pieejamie dokumentu fragmenti:
-${contextFromDocuments}
+Pieejamie dokumentu fragmenti (${relevantChunks.length} fragmenti):
+${contextFromDocuments || "Nav pieejami fragmenti."}
 
 Padomā par:
 1. Vai dotajos fragmentos ir atbilde uz jautājumu?
@@ -135,8 +154,8 @@ Atbildi īsi, 2-3 teikumos latviešu valodā.`,
             role: "system",
             content: `${SYSTEM_PROMPT}
 
-PIEEJAMIE DOKUMENTU FRAGMENTI:
-${contextFromDocuments || "Nav pieejami dokumentu fragmenti. Atbildi, ka informācija nav pieejama."}
+PIEEJAMIE DOKUMENTU FRAGMENTI (${relevantChunks.length} fragmenti):
+${contextFromDocuments || "Nav pieejami dokumentu fragmenti."}
 
 Izmanto šos fragmentus, lai atbildētu uz lietotāja jautājumiem. Ja informācija nav atrodama fragmentos, godīgi pasaki to.`,
           },
@@ -167,7 +186,7 @@ Izmanto šos fragmentus, lai atbildētu uz lietotāja jautājumiem. Ja informāc
     const content = answerData.choices?.[0]?.message?.content || "Atvainojiet, nevarēju sagatavot atbildi.";
 
     return new Response(
-      JSON.stringify({ content, reasoning }),
+      JSON.stringify({ content, reasoning, chunksUsed: relevantChunks.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

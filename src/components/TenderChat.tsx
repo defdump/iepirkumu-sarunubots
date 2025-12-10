@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
@@ -13,6 +12,8 @@ interface Message {
   reasoning?: string;
   timestamp: Date;
 }
+
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tender-chat`;
 
 export function TenderChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -47,44 +48,112 @@ export function TenderChat() {
     setInput("");
     setIsLoading(true);
 
+    const conversationHistory = messages
+      .filter((m) => m.id !== "greeting")
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+    conversationHistory.push({ role: "user", content: userMessage.content });
+
+    let assistantContent = "";
+    let reasoning = "";
+    const assistantId = (Date.now() + 1).toString();
+
     try {
-      const conversationHistory = messages
-        .filter((m) => m.id !== "greeting")
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
-      conversationHistory.push({ role: "user", content: userMessage.content });
-
-      const response = await supabase.functions.invoke("tender-chat", {
-        body: { messages: conversationHistory },
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ messages: conversationHistory }),
       });
 
-      if (response.error) {
-        throw new Error(response.error.message);
+      if (!resp.ok || !resp.body) {
+        throw new Error("Failed to start stream");
       }
 
-      const data = response.data;
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = "";
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.content,
-        reasoning: data.reasoning,
-        timestamp: new Date(),
-      };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
 
-      setMessages((prev) => [...prev, assistantMessage]);
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            
+            // Handle reasoning event
+            if (parsed.type === "reasoning") {
+              reasoning = parsed.content;
+              continue;
+            }
+
+            // Handle content delta
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              assistantContent += content;
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === "assistant" && last.id === assistantId) {
+                  return prev.map((m) =>
+                    m.id === assistantId ? { ...m, content: assistantContent, reasoning } : m
+                  );
+                }
+                return [
+                  ...prev,
+                  {
+                    id: assistantId,
+                    role: "assistant",
+                    content: assistantContent,
+                    reasoning,
+                    timestamp: new Date(),
+                  },
+                ];
+              });
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Final update with reasoning
+      if (assistantContent) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: assistantContent, reasoning } : m
+          )
+        );
+      }
     } catch (error) {
       console.error("Chat error:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "Atvainojiet, radās kļūda. Lūdzu, mēģiniet vēlreiz.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "Atvainojiet, radās kļūda. Lūdzu, mēģiniet vēlreiz.",
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +224,7 @@ export function TenderChat() {
               </span>
             </div>
           ))}
-          {isLoading && (
+          {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex items-start">
               <div className="chat-bubble-assistant">
                 <div className="flex items-center gap-2">

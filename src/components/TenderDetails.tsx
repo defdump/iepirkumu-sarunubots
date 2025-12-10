@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { FileText, Download, Sparkles, ExternalLink, Info, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -5,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenderData } from "@/data/tenderData";
 import { DocumentUpload } from "@/components/DocumentUpload";
+import { DocumentViewer } from "@/components/DocumentViewer";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +23,9 @@ interface TenderDetailsProps {
 }
 
 export function TenderDetails({ highlightedDocuments = [], onDocumentsChange }: TenderDetailsProps) {
+  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+
   const { data: documents = [], refetch } = useQuery({
     queryKey: ['documents'],
     queryFn: async (): Promise<DatabaseDocument[]> => {
@@ -54,6 +59,11 @@ export function TenderDetails({ highlightedDocuments = [], onDocumentsChange }: 
       docName.toLowerCase().includes(usedDoc.toLowerCase()) || 
       usedDoc.toLowerCase().includes(docName.toLowerCase())
     );
+  };
+
+  const handleDocumentClick = (docName: string) => {
+    setSelectedDocument(docName);
+    setViewerOpen(true);
   };
 
   return (
@@ -149,8 +159,9 @@ export function TenderDetails({ highlightedDocuments = [], onDocumentsChange }: 
                   documents.map((doc) => (
                     <div 
                       key={doc.document_name} 
+                      onClick={() => handleDocumentClick(doc.document_name)}
                       className={cn(
-                        "document-card group transition-all duration-300",
+                        "document-card group transition-all duration-300 cursor-pointer hover:bg-accent/50",
                         isDocumentHighlighted(doc.document_name) && "document-highlight"
                       )}
                     >
@@ -233,6 +244,12 @@ export function TenderDetails({ highlightedDocuments = [], onDocumentsChange }: 
           </TabsContent>
         </ScrollArea>
       </Tabs>
+
+      <DocumentViewer 
+        documentName={selectedDocument}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </div>
   );
 }

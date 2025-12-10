@@ -94,7 +94,7 @@ serve(async (req) => {
         .from("document_chunks")
         .select("document_name, content")
         .order("document_name")
-        .limit(20);
+        .limit(50);
 
       if (allError) {
         console.error("All chunks error:", allError);

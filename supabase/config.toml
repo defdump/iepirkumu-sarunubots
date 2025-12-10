@@ -1,0 +1,4 @@
+project_id = "kipggdbezpodhftfwucn"
+
+[functions.tender-chat]
+verify_jwt = false

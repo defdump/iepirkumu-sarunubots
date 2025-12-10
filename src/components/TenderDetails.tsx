@@ -5,8 +5,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenderData } from "@/data/tenderData";
 import { SeedButton } from "@/components/SeedButton";
+import { cn } from "@/lib/utils";
 
-export function TenderDetails() {
+// Map database document names to UI document names
+const documentNameMap: Record<string, string[]> = {
+  "Nolikums": ["Nolikums_Groz"],
+  "Tehniskā specifikācija": ["2.pielikums_Tehniskā specifikācija_Groz"],
+  "Esošās situācijas procesu apraksts": ["2.pielikums_Tehniskā specifikācija_Groz"],
+  "Līguma projekts": ["Nolikums_Groz"],
+  "Finanšu piedāvājumu apkopojums": [
+    "Iepirkuma Nr. FM VID 2023/176/ANM finanšu piedāvājumu apkopojums",
+    "3.pielikums_Finanšu piedāvājums_Groz"
+  ],
+  "Noslēguma ziņojums": ["Noslēguma ziņojums"],
+};
+
+interface TenderDetailsProps {
+  highlightedDocuments?: string[];
+}
+
+export function TenderDetails({ highlightedDocuments = [] }: TenderDetailsProps) {
+  const isDocumentHighlighted = (docName: string) => {
+    return highlightedDocuments.some((usedDoc) => {
+      const mappedNames = documentNameMap[usedDoc] || [];
+      return mappedNames.some((mapped) => docName.includes(mapped) || mapped.includes(docName));
+    });
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -91,9 +116,21 @@ export function TenderDetails() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {tenderData.documents.map((doc) => (
-                  <div key={doc.id} className="document-card group">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5 text-primary" />
+                  <div 
+                    key={doc.id} 
+                    className={cn(
+                      "document-card group transition-all duration-300",
+                      isDocumentHighlighted(doc.name) && "document-highlight"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300",
+                      isDocumentHighlighted(doc.name) ? "bg-green-500/20" : "bg-primary/10"
+                    )}>
+                      <FileText className={cn(
+                        "w-5 h-5 transition-colors duration-300",
+                        isDocumentHighlighted(doc.name) ? "text-green-500" : "text-primary"
+                      )} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-foreground truncate">

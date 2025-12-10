@@ -55,14 +55,17 @@ function splitIntoChunks(text: string, targetChunkSize: number = 2000): string[]
   return chunks.filter(chunk => chunk.length > 50); // Filter out very small chunks
 }
 
-// Extract text from DOCX using mammoth
-async function extractTextFromDocx(arrayBuffer: ArrayBuffer): Promise<string> {
+// Extract HTML from DOCX using mammoth (preserves formatting)
+async function extractHtmlFromDocx(arrayBuffer: ArrayBuffer): Promise<string> {
   try {
-    const result = await mammoth.extractRawText({ arrayBuffer });
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    if (result.messages.length > 0) {
+      console.log("Mammoth messages:", result.messages);
+    }
     return result.value;
   } catch (error) {
     console.error("DOCX extraction error:", error);
-    throw new Error("Failed to extract text from DOCX");
+    throw new Error("Failed to extract content from DOCX");
   }
 }
 
@@ -106,7 +109,7 @@ serve(async (req) => {
     const fileName = file.name.toLowerCase();
     
     if (fileName.endsWith(".docx")) {
-      fullText = await extractTextFromDocx(arrayBuffer);
+      fullText = await extractHtmlFromDocx(arrayBuffer);
     } else if (fileName.endsWith(".txt") || fileName.endsWith(".md")) {
       fullText = extractTextFromTxt(arrayBuffer);
     } else {

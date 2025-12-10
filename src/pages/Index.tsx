@@ -1,11 +1,19 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { TenderChat } from "@/components/TenderChat";
+import { TenderDetails } from "@/components/TenderDetails";
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-background">
+      <div className="h-screen flex">
+        {/* Chat Panel - Left Side */}
+        <div className="w-[400px] shrink-0 border-r border-border p-4">
+          <TenderChat />
+        </div>
+
+        {/* Tender Details - Right Side */}
+        <div className="flex-1 p-6 overflow-hidden">
+          <TenderDetails />
+        </div>
       </div>
     </div>
   );

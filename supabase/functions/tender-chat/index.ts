@@ -71,6 +71,7 @@ serve(async (req) => {
           body: JSON.stringify({
             model: "text-embedding-3-small",
             input: searchQuery,
+            dimensions: 768,
           }),
         });
 

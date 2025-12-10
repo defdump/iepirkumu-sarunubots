@@ -17,6 +17,7 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
     body: JSON.stringify({
       model: "text-embedding-3-small",
       input: text,
+      dimensions: 768,
     }),
   });
 

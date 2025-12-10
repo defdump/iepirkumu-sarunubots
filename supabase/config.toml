@@ -2,3 +2,6 @@ project_id = "kipggdbezpodhftfwucn"
 
 [functions.tender-chat]
 verify_jwt = false
+
+[functions.seed-documents]
+verify_jwt = false

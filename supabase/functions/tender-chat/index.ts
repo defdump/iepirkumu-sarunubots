@@ -107,19 +107,29 @@ serve(async (req) => {
       }
     }
 
-    // Fallback: get all chunks if semantic search didn't work
+    // Fallback: get chunks from ALL documents if semantic search didn't work
     if (relevantChunks.length === 0) {
-      console.log("Semantic search unavailable, fetching all chunks");
+      console.log("Semantic search unavailable, fetching chunks from all documents");
+      
+      // Get chunks from each document to ensure coverage
       const { data: allChunks, error: allError } = await supabase
         .from("document_chunks")
-        .select("document_name, content")
-        .order("document_name")
-        .limit(50);
+        .select("document_name, content, chunk_index")
+        .order("chunk_index", { ascending: true })
+        .limit(150); // Increased limit to get all ~104 chunks
 
       if (allError) {
         console.error("All chunks error:", allError);
       } else if (allChunks) {
         console.log(`Fetched ${allChunks.length} total chunks`);
+        
+        // Log which documents we got
+        const docCounts = allChunks.reduce((acc: Record<string, number>, chunk) => {
+          acc[chunk.document_name] = (acc[chunk.document_name] || 0) + 1;
+          return acc;
+        }, {});
+        console.log("Documents fetched:", JSON.stringify(docCounts));
+        
         relevantChunks = allChunks;
       }
     }

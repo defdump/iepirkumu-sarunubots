@@ -123,6 +123,22 @@
     @apply flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors cursor-pointer;
   }
 
+  .document-highlight {
+    @apply border-2 border-green-500 bg-green-50/50;
+    animation: pulse-green-border 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-green-border {
+    0%, 100% {
+      border-color: hsl(142 76% 36%);
+      box-shadow: 0 0 0 0 hsla(142, 76%, 36%, 0.4);
+    }
+    50% {
+      border-color: hsl(142 76% 50%);
+      box-shadow: 0 0 8px 2px hsla(142, 76%, 36%, 0.3);
+    }
+  }
+
   .status-badge {
     @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
   }

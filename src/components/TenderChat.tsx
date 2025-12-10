@@ -13,9 +13,13 @@ interface Message {
   timestamp: Date;
 }
 
+interface TenderChatProps {
+  onDocumentsUsed?: (documents: string[]) => void;
+}
+
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tender-chat`;
 
-export function TenderChat() {
+export function TenderChat({ onDocumentsUsed }: TenderChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "greeting",
@@ -63,6 +67,7 @@ export function TenderChat() {
 
     let assistantContent = "";
     let reasoning = "";
+    let usedDocuments: string[] = [];
     const assistantId = (Date.now() + 1).toString();
 
     try {
@@ -103,9 +108,10 @@ export function TenderChat() {
           try {
             const parsed = JSON.parse(jsonStr);
             
-            // Handle reasoning event
-            if (parsed.type === "reasoning") {
-              reasoning = parsed.content;
+            // Handle metadata event (reasoning + used documents)
+            if (parsed.type === "metadata") {
+              reasoning = parsed.reasoning || "";
+              usedDocuments = parsed.usedDocuments || [];
               continue;
             }
 
@@ -146,6 +152,11 @@ export function TenderChat() {
             m.id === assistantId ? { ...m, content: assistantContent, reasoning } : m
           )
         );
+        
+        // Notify parent about used documents
+        if (usedDocuments.length > 0 && onDocumentsUsed) {
+          onDocumentsUsed(usedDocuments);
+        }
       }
     } catch (error) {
       console.error("Chat error:", error);

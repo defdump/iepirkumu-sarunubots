@@ -17,7 +17,18 @@ IEPIRKUMA PAMATINFORMĀCIJA:
 - Termiņš: 16.07.2024 13:00
 
 Tu atbildi TIKAI latviešu valodā. Balstīies uz dotajiem dokumentu fragmentiem un iepirkuma kontekstu.
-Ja informācija nav pieejama dotajos fragmentos, godīgi pasaki, ka šī informācija nav pieejama tavā kontekstā.`;
+Ja informācija nav pieejama dotajos fragmentos, godīgi pasaki, ka šī informācija nav pieejama tavā kontekstā.
+
+SVARĪGI - AVOTU NORĀDĪŠANA:
+Katras atbildes beigās OBLIGĀTI norādi avotus, ja izmantoji informāciju no dokumentiem.
+Formāts: "Avots: [Dokumenta nosaukums], [konkrēta sadaļa/punkts ja zināms]"
+Piemēri:
+- "Avots: Nolikums, 3. nodaļa"
+- "Avots: Tehniskā specifikācija, prasības infrastruktūrai"
+- "Avots: Finanšu piedāvājumu apkopojums"
+- "Avots: Līguma projekts, garantijas noteikumi"
+Ja izmantoji vairākus dokumentus, norādi visus: "Avoti: Nolikums; Tehniskā specifikācija"
+Ja neatradi informāciju dokumentos, neraksti avotu.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -93,12 +104,17 @@ serve(async (req) => {
       }
     }
 
-    // Build context string
+    // Build context string and track unique document names
+    const usedDocuments: string[] = [];
     if (relevantChunks.length > 0) {
+      const uniqueDocs = new Set<string>();
+      relevantChunks.forEach((chunk) => uniqueDocs.add(chunk.document_name));
+      usedDocuments.push(...Array.from(uniqueDocs));
+      
       contextFromDocuments = relevantChunks
         .map((chunk) => `[${chunk.document_name}]\n${chunk.content}`)
         .join("\n\n---\n\n");
-      console.log(`Context built with ${relevantChunks.length} chunks, length: ${contextFromDocuments.length}`);
+      console.log(`Context built with ${relevantChunks.length} chunks from documents: ${usedDocuments.join(", ")}`);
     } else {
       console.log("WARNING: No chunks available for context!");
     }
@@ -183,14 +199,16 @@ Izmanto šos fragmentus, lai atbildētu uz lietotāja jautājumiem. Ja informāc
       throw new Error("Failed to get answer");
     }
 
-    // Create a custom stream that prepends reasoning
+    // Create a custom stream that prepends reasoning and used documents
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        // Send reasoning first as a special event
-        if (reasoning) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "reasoning", content: reasoning })}\n\n`));
-        }
+        // Send metadata first (reasoning + used documents)
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
+          type: "metadata", 
+          reasoning: reasoning || "",
+          usedDocuments: usedDocuments 
+        })}\n\n`));
 
         // Forward the AI stream
         const reader = answerResponse.body!.getReader();

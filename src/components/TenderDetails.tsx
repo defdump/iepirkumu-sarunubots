@@ -33,7 +33,7 @@ export function TenderDetails({ highlightedDocuments = [] }: TenderDetailsProps)
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full max-h-full">
       {/* Header */}
       <Card className="border-0 shadow-none bg-card rounded-xl border border-border mb-4">
         <CardHeader className="pb-4">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { FileText, Loader2, X } from "lucide-react";
@@ -11,31 +11,17 @@ interface DocumentViewerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// Process text to detect and format common patterns
-function formatDocumentContent(text: string): string {
-  return text
-    // Convert numbered lists (1., 2., etc.) to proper formatting
-    .replace(/^(\d+\.)\s+/gm, '\n**$1** ')
-    // Convert bullet points
-    .replace(/^[-•]\s+/gm, '\n• ')
-    // Add spacing before section headers (ALL CAPS lines)
-    .replace(/^([A-ZĀČĒĢĪĶĻŅŌŖŠŪŽ][A-ZĀČĒĢĪĶĻŅŌŖŠŪŽ\s\d.,()-]{10,})$/gm, '\n\n### $1\n')
-    // Format table-like structures with pipes
-    .replace(/\|/g, ' │ ')
-    // Clean up excessive whitespace
-    .replace(/\n{4,}/g, '\n\n\n')
-    .trim();
-}
-
 export function DocumentViewer({ documentName, open, onOpenChange }: DocumentViewerProps) {
   const [content, setContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [chunkCount, setChunkCount] = useState(0);
+  const [isHtmlContent, setIsHtmlContent] = useState(false);
 
   useEffect(() => {
     if (!documentName || !open) {
       setContent("");
       setChunkCount(0);
+      setIsHtmlContent(false);
       return;
     }
 
@@ -56,8 +42,12 @@ export function DocumentViewer({ documentName, open, onOpenChange }: DocumentVie
 
         if (data && data.length > 0) {
           setChunkCount(data.length);
-          const fullContent = data.map((chunk) => chunk.content).join("\n\n");
-          setContent(formatDocumentContent(fullContent));
+          const fullContent = data.map((chunk) => chunk.content).join("\n");
+          
+          // Check if content contains HTML tags
+          const hasHtml = /<[a-z][\s\S]*>/i.test(fullContent);
+          setIsHtmlContent(hasHtml);
+          setContent(fullContent);
         } else {
           setContent("Dokuments nav atrasts.");
         }
@@ -106,55 +96,14 @@ export function DocumentViewer({ documentName, open, onOpenChange }: DocumentVie
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Ielādē dokumentu...</p>
               </div>
+            ) : isHtmlContent ? (
+              <div 
+                className="document-html-content"
+                dangerouslySetInnerHTML={{ __html: content }}
+              />
             ) : (
-              <div className="document-content">
-                {content.split('\n').map((line, index) => {
-                  // Handle headers (### prefix)
-                  if (line.startsWith('### ')) {
-                    return (
-                      <h3 key={index} className="text-sm font-bold text-foreground mt-6 mb-3 uppercase tracking-wide border-b border-border/50 pb-2">
-                        {line.replace('### ', '')}
-                      </h3>
-                    );
-                  }
-                  
-                  // Handle bold text markers
-                  if (line.includes('**')) {
-                    const parts = line.split(/(\*\*[^*]+\*\*)/g);
-                    return (
-                      <p key={index} className="text-sm text-foreground/90 leading-relaxed mb-2">
-                        {parts.map((part, i) => {
-                          if (part.startsWith('**') && part.endsWith('**')) {
-                            return <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
-                          }
-                          return part;
-                        })}
-                      </p>
-                    );
-                  }
-                  
-                  // Handle bullet points
-                  if (line.startsWith('• ')) {
-                    return (
-                      <p key={index} className="text-sm text-foreground/90 leading-relaxed mb-1 pl-4">
-                        <span className="text-primary mr-2">•</span>
-                        {line.slice(2)}
-                      </p>
-                    );
-                  }
-                  
-                  // Handle empty lines
-                  if (line.trim() === '') {
-                    return <div key={index} className="h-3" />;
-                  }
-                  
-                  // Regular paragraph
-                  return (
-                    <p key={index} className="text-sm text-foreground/90 leading-relaxed mb-2">
-                      {line}
-                    </p>
-                  );
-                })}
+              <div className="document-plain-content whitespace-pre-wrap text-sm leading-relaxed">
+                {content}
               </div>
             )}
           </div>

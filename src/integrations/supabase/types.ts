@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           document_name: string
           embedding: string | null
+          fts_vector: unknown
           id: string
           metadata: Json | null
         }
@@ -30,6 +31,7 @@ export type Database = {
           created_at?: string
           document_name: string
           embedding?: string | null
+          fts_vector?: unknown
           id?: string
           metadata?: Json | null
         }
@@ -39,6 +41,7 @@ export type Database = {
           created_at?: string
           document_name?: string
           embedding?: string | null
+          fts_vector?: unknown
           id?: string
           metadata?: Json | null
         }
@@ -60,6 +63,15 @@ export type Database = {
           document_name: string
           id: string
           similarity: number
+        }[]
+      }
+      search_documents: {
+        Args: { max_results?: number; search_query: string }
+        Returns: {
+          content: string
+          document_name: string
+          id: string
+          rank: number
         }[]
       }
     }

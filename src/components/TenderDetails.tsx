@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenderData } from "@/data/tenderData";
+import { SeedButton } from "@/components/SeedButton";
 
 export function TenderDetails() {
   return (
@@ -31,6 +32,7 @@ export function TenderDetails() {
                 </span>
               </div>
             </div>
+            <SeedButton />
           </div>
         </CardHeader>
       </Card>

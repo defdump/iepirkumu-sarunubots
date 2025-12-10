@@ -7,8 +7,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Strip HTML tags to get plain text for embeddings
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Generate embedding using OpenAI
 async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
+  // Truncate text if too long (max ~8000 tokens, roughly 32000 chars)
+  const truncatedText = text.slice(0, 30000);
+  
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
@@ -17,7 +33,7 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
     },
     body: JSON.stringify({
       model: "text-embedding-3-small",
-      input: text,
+      input: truncatedText,
       dimensions: 768,
     }),
   });
@@ -32,8 +48,35 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
   return data.data[0].embedding;
 }
 
-// Split text into chunks of approximately target size
-function splitIntoChunks(text: string, targetChunkSize: number = 2000): string[] {
+// Split HTML into chunks while preserving structure
+function splitHtmlIntoChunks(html: string, targetChunkSize: number = 3000): string[] {
+  const chunks: string[] = [];
+  
+  // Split by paragraph tags first
+  const parts = html.split(/(<\/p>|<\/li>|<\/tr>|<\/h[1-6]>)/gi);
+  
+  let currentChunk = "";
+  
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    
+    if (currentChunk.length + part.length > targetChunkSize && currentChunk.length > 100) {
+      chunks.push(currentChunk.trim());
+      currentChunk = part;
+    } else {
+      currentChunk += part;
+    }
+  }
+  
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks.filter(chunk => chunk.length > 50);
+}
+
+// Split plain text into chunks
+function splitTextIntoChunks(text: string, targetChunkSize: number = 2000): string[] {
   const chunks: string[] = [];
   const paragraphs = text.split(/\n\n+/);
   
@@ -52,17 +95,25 @@ function splitIntoChunks(text: string, targetChunkSize: number = 2000): string[]
     chunks.push(currentChunk.trim());
   }
   
-  return chunks.filter(chunk => chunk.length > 50); // Filter out very small chunks
+  return chunks.filter(chunk => chunk.length > 50);
 }
 
-// Extract HTML from DOCX using mammoth (preserves formatting)
-async function extractHtmlFromDocx(arrayBuffer: ArrayBuffer): Promise<string> {
+// Extract both HTML and plain text from DOCX
+async function extractFromDocx(arrayBuffer: ArrayBuffer): Promise<{ html: string; text: string }> {
   try {
-    const result = await mammoth.convertToHtml({ arrayBuffer });
-    if (result.messages.length > 0) {
-      console.log("Mammoth messages:", result.messages);
+    const [htmlResult, textResult] = await Promise.all([
+      mammoth.convertToHtml({ arrayBuffer }),
+      mammoth.extractRawText({ arrayBuffer }),
+    ]);
+    
+    if (htmlResult.messages.length > 0) {
+      console.log("Mammoth messages:", htmlResult.messages);
     }
-    return result.value;
+    
+    return {
+      html: htmlResult.value,
+      text: textResult.value,
+    };
   } catch (error) {
     console.error("DOCX extraction error:", error);
     throw new Error("Failed to extract content from DOCX");
@@ -104,23 +155,30 @@ serve(async (req) => {
     // Read file content
     const arrayBuffer = await file.arrayBuffer();
     
-    // Extract text based on file type
-    let fullText = "";
+    // Extract content based on file type
+    let htmlContent = "";
+    let textContent = "";
     const fileName = file.name.toLowerCase();
     
     if (fileName.endsWith(".docx")) {
-      fullText = await extractHtmlFromDocx(arrayBuffer);
+      const extracted = await extractFromDocx(arrayBuffer);
+      htmlContent = extracted.html;
+      textContent = extracted.text;
     } else if (fileName.endsWith(".txt") || fileName.endsWith(".md")) {
-      fullText = extractTextFromTxt(arrayBuffer);
+      textContent = extractTextFromTxt(arrayBuffer);
+      htmlContent = textContent; // Plain text doesn't have HTML
     } else {
       throw new Error(`Unsupported file type: ${fileName}. Supported: .docx, .txt, .md`);
     }
 
-    console.log(`Extracted ${fullText.length} characters of text`);
+    console.log(`Extracted ${htmlContent.length} chars HTML, ${textContent.length} chars text`);
 
-    // Split into chunks
-    const textChunks = splitIntoChunks(fullText);
-    console.log(`Split into ${textChunks.length} chunks`);
+    // For DOCX, chunk the HTML for display, but use text for embeddings
+    const isDocx = fileName.endsWith(".docx");
+    const displayChunks = isDocx ? splitHtmlIntoChunks(htmlContent) : splitTextIntoChunks(textContent);
+    const textChunks = splitTextIntoChunks(textContent);
+    
+    console.log(`Split into ${displayChunks.length} display chunks, ${textChunks.length} text chunks`);
 
     // Delete existing chunks for this document if replacing
     if (replaceExisting) {
@@ -137,24 +195,32 @@ serve(async (req) => {
     }
 
     // Process chunks and generate embeddings
+    // Use the smaller of the two chunk arrays to ensure alignment
+    const numChunks = Math.min(displayChunks.length, textChunks.length);
+    
     const chunksToInsert: Array<{
       document_name: string;
       chunk_index: number;
       content: string;
-      metadata: { source: string; total_chunks: number };
+      metadata: { source: string; total_chunks: number; has_html: boolean };
       embedding: string;
     }> = [];
 
-    for (let i = 0; i < textChunks.length; i++) {
-      console.log(`Generating embedding for chunk ${i + 1}/${textChunks.length}`);
+    for (let i = 0; i < numChunks; i++) {
+      console.log(`Generating embedding for chunk ${i + 1}/${numChunks}`);
       
+      // Use plain text for embedding generation
       const embedding = await generateEmbedding(textChunks[i], openaiApiKey);
       
       chunksToInsert.push({
         document_name: documentName,
         chunk_index: i,
-        content: textChunks[i],
-        metadata: { source: "uploaded_document", total_chunks: textChunks.length },
+        content: displayChunks[i], // Store HTML for display
+        metadata: { 
+          source: "uploaded_document", 
+          total_chunks: numChunks,
+          has_html: isDocx,
+        },
         embedding: JSON.stringify(embedding),
       });
     }
@@ -177,7 +243,7 @@ serve(async (req) => {
         success: true,
         documentName,
         chunksCreated: data?.length || 0,
-        totalCharacters: fullText.length,
+        totalCharacters: htmlContent.length,
         message: `Dokuments "${documentName}" veiksmīgi apstrādāts ar ${data?.length || 0} fragmentiem`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

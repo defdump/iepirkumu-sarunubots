@@ -298,9 +298,9 @@ export function TenderChat({ onDocumentsUsed }: TenderChatProps) {
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Uzdodiet jautājumu par iepirkumu..."
-            disabled={isLoading}
+            placeholder={isLoading ? "Gaidu atbildi..." : "Uzdodiet jautājumu par iepirkumu..."}
             className="flex-1"
+            autoFocus
           />
           <Button type="submit" disabled={isLoading || !input.trim()} size="icon">
             <Send className="w-4 h-4" />

@@ -19,6 +19,36 @@ interface TenderChatProps {
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tender-chat`;
 
+// Parse cited sources from the AI response
+const parseCitedSources = (content: string): string[] => {
+  const sources: string[] = [];
+  
+  // Match patterns like "Avots: Nolikums" or "Avoti: Nolikums; Tehniskā specifikācija"
+  const sourceMatch = content.match(/Avot[si]?:\s*([^\n]+)/i);
+  if (sourceMatch) {
+    const sourceText = sourceMatch[1];
+    // Split by common separators and clean up
+    const parts = sourceText.split(/[;,]/).map(s => s.trim());
+    
+    for (const part of parts) {
+      // Extract document name (before any comma or additional details)
+      const docName = part.split(',')[0].trim();
+      if (docName) {
+        // Map common variations to standard names
+        if (docName.toLowerCase().includes('nolikum')) sources.push('Nolikums');
+        else if (docName.toLowerCase().includes('tehnisk')) sources.push('Tehniskā specifikācija');
+        else if (docName.toLowerCase().includes('līgum')) sources.push('Līguma projekts');
+        else if (docName.toLowerCase().includes('finanšu')) sources.push('Finanšu piedāvājumu apkopojums');
+        else if (docName.toLowerCase().includes('esošā')) sources.push('Esošās situācijas procesu apraksts');
+        else if (docName.toLowerCase().includes('noslēgum')) sources.push('Noslēguma ziņojums');
+        else sources.push(docName);
+      }
+    }
+  }
+  
+  return [...new Set(sources)]; // Remove duplicates
+};
+
 export function TenderChat({ onDocumentsUsed }: TenderChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -153,9 +183,10 @@ export function TenderChat({ onDocumentsUsed }: TenderChatProps) {
           )
         );
         
-        // Notify parent about used documents
-        if (usedDocuments.length > 0 && onDocumentsUsed) {
-          onDocumentsUsed(usedDocuments);
+        // Parse cited sources from the response instead of using all context documents
+        const citedDocuments = parseCitedSources(assistantContent);
+        if (citedDocuments.length > 0 && onDocumentsUsed) {
+          onDocumentsUsed(citedDocuments);
         }
       }
     } catch (error) {

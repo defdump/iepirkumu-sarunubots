@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenderData } from "@/data/tenderData";
-import { SeedButton } from "@/components/SeedButton";
 import { DocumentUpload } from "@/components/DocumentUpload";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,7 +81,6 @@ export function TenderDetails({ highlightedDocuments = [], onDocumentsChange }: 
                 </span>
               </div>
             </div>
-            <SeedButton />
           </div>
         </CardHeader>
       </Card>

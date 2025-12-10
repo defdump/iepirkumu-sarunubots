@@ -103,7 +103,7 @@ serve(async (req) => {
       console.log("WARNING: No chunks available for context!");
     }
 
-    // First, get reasoning
+    // First, get reasoning (non-streaming)
     const reasoningResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -132,15 +132,15 @@ Atbildi īsi, 2-3 teikumos latviešu valodā.`,
       }),
     });
 
-    if (!reasoningResponse.ok) {
-      const errorText = await reasoningResponse.text();
-      console.error("Reasoning error:", errorText);
+    let reasoning = "";
+    if (reasoningResponse.ok) {
+      const reasoningData = await reasoningResponse.json();
+      reasoning = reasoningData.choices?.[0]?.message?.content || "";
+    } else {
+      console.error("Reasoning error:", await reasoningResponse.text());
     }
 
-    const reasoningData = await reasoningResponse.json();
-    const reasoning = reasoningData.choices?.[0]?.message?.content || "";
-
-    // Then, get the actual answer with context
+    // Stream the actual answer
     const answerResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -149,6 +149,7 @@ Atbildi īsi, 2-3 teikumos latviešu valodā.`,
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
+        stream: true,
         messages: [
           {
             role: "system",
@@ -182,13 +183,33 @@ Izmanto šos fragmentus, lai atbildētu uz lietotāja jautājumiem. Ja informāc
       throw new Error("Failed to get answer");
     }
 
-    const answerData = await answerResponse.json();
-    const content = answerData.choices?.[0]?.message?.content || "Atvainojiet, nevarēju sagatavot atbildi.";
+    // Create a custom stream that prepends reasoning
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        // Send reasoning first as a special event
+        if (reasoning) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "reasoning", content: reasoning })}\n\n`));
+        }
 
-    return new Response(
-      JSON.stringify({ content, reasoning, chunksUsed: relevantChunks.length }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+        // Forward the AI stream
+        const reader = answerResponse.body!.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            controller.enqueue(value);
+          }
+        } finally {
+          reader.releaseLock();
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    });
   } catch (error) {
     console.error("Chat error:", error);
     return new Response(

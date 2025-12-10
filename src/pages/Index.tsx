@@ -14,15 +14,15 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="h-screen flex">
+    <div className="h-screen overflow-hidden bg-background">
+      <div className="h-full flex">
         {/* Chat Panel - Left Side */}
-        <div className="w-[400px] shrink-0 border-r border-border p-4">
+        <div className="w-[400px] shrink-0 border-r border-border p-4 h-full overflow-hidden">
           <TenderChat onDocumentsUsed={handleDocumentsUsed} />
         </div>
 
         {/* Tender Details - Right Side */}
-        <div className="flex-1 p-6 overflow-hidden">
+        <div className="flex-1 p-6 h-full overflow-auto">
           <TenderDetails highlightedDocuments={highlightedDocuments} />
         </div>
       </div>

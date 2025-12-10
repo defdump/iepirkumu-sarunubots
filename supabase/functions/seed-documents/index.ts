@@ -139,54 +139,32 @@ const documentChunks = [
     ],
   },
   
-  // Finanšu piedāvājums
+  // Finanšu piedāvājumu apkopojums (REĀLI DATI no piedāvājumu atvēršanas protokola)
   {
-    document_name: "Finanšu piedāvājums",
+    document_name: "Finanšu piedāvājumu apkopojums",
     chunks: [
-      `Finanšu piedāvājuma struktūra:
-      1. Paplašināšanas izmaksas:
-         - Centrālā mezgla programmatūras izstrāde
-         - Lokālo mezglu programmatūras izstrāde
-         - Lokālo mezglu ieviešana (Indras, Kārsavas, Terehovas, Pāternieku, Liepājas, Ventspils MKP)
+      `PRETENDENTU IESNIEGTO FINANŠU PIEDĀVĀJUMU APKOPOJUMS
+      Iepirkums: BAXE risinājuma paplašināšana, pilnveidošana, uzturēšana un garantijas nodrošināšana
+      Iepirkuma identifikācijas Nr. FM VID 2024/232/ANM
+      Pasūtītājs: Valsts ieņēmumu dienests (reģ. Nr. 90000069281)
+      Daļa Nr. 1 - Iepirkums`,
       
-      2. Pilnveidošanas, uzturēšanas un garantijas izmaksas:
-         - Darbietilpības novērtējums (cilvēkdienas)
-         - Cilvēkdienas likme EUR`,
+      `Iesniegtie piedāvājumi:
       
-      `Darbietilpības elementi:
-      - Formu izstrāde (vienkārša, vidēji sarežģīta, sarežģīta)
-      - Datu pārbaude, pielasīšana vai atlase
-      - Atskaišu izstrāde
-      - Datu apmaiņas servisu izstrāde
-      - Konfigurācijas izmaiņas
-      - Dokumentācijas izstrāde
-      - Testēšana`,
+      Pretendents: Personu apvienība, kas sastāv no SIA "Olnio" un SIA "Armgate"
+      Iesniegšanas datums un laiks: 10.10.2024 plkst. 20:22
+      Finanšu piedāvājums (cena bez PVN): EUR 2,114,660.00
       
-      `Piedāvājuma nodrošinājums:
-      - Piedāvājuma nodrošinājuma summa norādīta nolikumā
-      - Nodrošinājums jāiesniedz bankas garantijas vai apdrošināšanas polises veidā
-      - Nodrošinājumam jābūt derīgam visu piedāvājuma derīguma termiņu`,
-    ],
-  },
-  
-  // Noslēguma ziņojums (simulēts saturs, jo oriģināls nav pieejams)
-  {
-    document_name: "Noslēguma ziņojums",
-    chunks: [
-      `Iepirkuma noslēguma ziņojums FM VID 2023/176/ANM:
-      Iepirkuma nosaukums: BAXE risinājuma paplašināšana, pilnveidošana, uzturēšana un garantijas nodrošināšana
-      Iepirkuma statuss: Noslēdzies
-      Piedāvājumu atvēršanas datums: 16.07.2024`,
+      Personu apvienības dalībnieki:
+      - SIA Olnio
+      - "Armgate" SIA`,
       
-      `Iepirkuma rezultāti:
+      `Piedāvājumu atvēršanas informācija:
+      - Dokumenta avots: Elektronisko iepirkumu sistēmas e-konkursu apakšsistēmas ģenerēts apkopojums
+      - Apkopojuma sagatavošanas laiks: 11.10.2024; 14:00
       - Saņemto piedāvājumu skaits: 1
-      - Iepirkums noslēdzies ar līguma slēgšanu
-      - Detalizēta informācija par uzvarētāju un līguma summu pieejama EIS sistēmā`,
-      
-      `Iepirkuma komisijas lēmums:
-      Iepirkuma komisija izvērtēja iesniegtos piedāvājumus atbilstoši nolikumā noteiktajām prasībām.
-      Piedāvājumi tika vērtēti pēc zemākās cenas principa.
-      Komisija pieņēma lēmumu par iepirkuma uzvarētāju.`,
+      - Uzvarētājs: Personu apvienība (SIA "Olnio" + SIA "Armgate")
+      - Līguma summa bez PVN: EUR 2,114,660.00`,
     ],
   },
 ];

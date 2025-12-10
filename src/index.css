@@ -183,4 +183,31 @@
       opacity: 0.7;
     }
   }
+
+  /* Document viewer styles */
+  .document-content {
+    font-family: 'Inter', system-ui, sans-serif;
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .document-content h3 {
+    font-family: inherit;
+  }
+
+  .document-content p {
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  /* Table-like content styling */
+  .document-content p:has(│) {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    background-color: hsl(var(--muted));
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    white-space: pre-wrap;
+  }
 }

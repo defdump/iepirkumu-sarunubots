@@ -28,6 +28,7 @@ export function TenderChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [expandedReasoning, setExpandedReasoning] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,6 +48,9 @@ export function TenderChat() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    
+    // Keep focus on input
+    setTimeout(() => inputRef.current?.focus(), 0);
 
     const conversationHistory = messages
       .filter((m) => m.id !== "greeting")
@@ -156,6 +160,7 @@ export function TenderChat() {
       ]);
     } finally {
       setIsLoading(false);
+      inputRef.current?.focus();
     }
   };
 
@@ -245,6 +250,7 @@ export function TenderChat() {
       <form onSubmit={handleSubmit} className="p-4 border-t border-border">
         <div className="flex gap-2">
           <Input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Uzdodiet jautājumu par iepirkumu..."

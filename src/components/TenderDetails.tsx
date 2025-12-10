@@ -7,30 +7,54 @@ import { tenderData } from "@/data/tenderData";
 import { SeedButton } from "@/components/SeedButton";
 import { DocumentUpload } from "@/components/DocumentUpload";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
-// Map database document names to UI document names
-const documentNameMap: Record<string, string[]> = {
-  "Nolikums": ["Nolikums_Groz"],
-  "Tehniskā specifikācija": ["2.pielikums_Tehniskā specifikācija_Groz"],
-  "Esošās situācijas procesu apraksts": ["2.pielikums_Tehniskā specifikācija_Groz"],
-  "Līguma projekts": ["Nolikums_Groz"],
-  "Finanšu piedāvājumu apkopojums": [
-    "Iepirkuma Nr. FM VID 2023/176/ANM finanšu piedāvājumu apkopojums",
-    "3.pielikums_Finanšu piedāvājums_Groz"
-  ],
-  "Noslēguma ziņojums": ["Noslēguma ziņojums"],
-};
+interface DatabaseDocument {
+  document_name: string;
+  chunk_count: number;
+  created_at: string;
+}
 
 interface TenderDetailsProps {
   highlightedDocuments?: string[];
+  onDocumentsChange?: () => void;
 }
 
-export function TenderDetails({ highlightedDocuments = [] }: TenderDetailsProps) {
+export function TenderDetails({ highlightedDocuments = [], onDocumentsChange }: TenderDetailsProps) {
+  const { data: documents = [], refetch } = useQuery({
+    queryKey: ['documents'],
+    queryFn: async (): Promise<DatabaseDocument[]> => {
+      const { data, error } = await supabase
+        .from('document_chunks')
+        .select('document_name, created_at')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Group by document_name and count chunks
+      const docMap = new Map<string, { chunk_count: number; created_at: string }>();
+      data?.forEach(chunk => {
+        if (!docMap.has(chunk.document_name)) {
+          docMap.set(chunk.document_name, { chunk_count: 1, created_at: chunk.created_at });
+        } else {
+          docMap.get(chunk.document_name)!.chunk_count++;
+        }
+      });
+      
+      return Array.from(docMap.entries()).map(([name, info]) => ({
+        document_name: name,
+        chunk_count: info.chunk_count,
+        created_at: info.created_at,
+      }));
+    },
+  });
+
   const isDocumentHighlighted = (docName: string) => {
-    return highlightedDocuments.some((usedDoc) => {
-      const mappedNames = documentNameMap[usedDoc] || [];
-      return mappedNames.some((mapped) => docName.includes(mapped) || mapped.includes(docName));
-    });
+    return highlightedDocuments.some((usedDoc) => 
+      docName.toLowerCase().includes(usedDoc.toLowerCase()) || 
+      usedDoc.toLowerCase().includes(docName.toLowerCase())
+    );
   };
 
   return (
@@ -108,54 +132,50 @@ export function TenderDetails({ highlightedDocuments = [] }: TenderDetailsProps)
             </Card>
 
             {/* Document Upload */}
-            <DocumentUpload />
+            <DocumentUpload onUploadComplete={refetch} />
 
             {/* Documents */}
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <Download className="w-4 h-4 text-muted-foreground" />
-                  <h3 className="font-medium">Dokumenti</h3>
+                  <h3 className="font-medium">Dokumenti ({documents.length})</h3>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                {tenderData.documents.map((doc) => (
-                  <div 
-                    key={doc.id} 
-                    className={cn(
-                      "document-card group transition-all duration-300",
-                      isDocumentHighlighted(doc.name) && "document-highlight"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300",
-                      isDocumentHighlighted(doc.name) ? "bg-green-500/20" : "bg-primary/10"
-                    )}>
-                      <FileText className={cn(
-                        "w-5 h-5 transition-colors duration-300",
-                        isDocumentHighlighted(doc.name) ? "text-green-500" : "text-primary"
-                      )} />
+                {documents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nav apstrādātu dokumentu. Izmantojiet augšupielādi vai "Seed" pogu.
+                  </p>
+                ) : (
+                  documents.map((doc) => (
+                    <div 
+                      key={doc.document_name} 
+                      className={cn(
+                        "document-card group transition-all duration-300",
+                        isDocumentHighlighted(doc.document_name) && "document-highlight"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300",
+                        isDocumentHighlighted(doc.document_name) ? "bg-green-500/20" : "bg-primary/10"
+                      )}>
+                        <FileText className={cn(
+                          "w-5 h-5 transition-colors duration-300",
+                          isDocumentHighlighted(doc.document_name) ? "text-green-500" : "text-primary"
+                        )} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground truncate">
+                          {doc.document_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {doc.chunk_count} fragmenti • {new Date(doc.created_at).toLocaleDateString('lv-LV')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-foreground truncate">
-                        {doc.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {doc.filename}
-                        {doc.size && ` • ${doc.size}`}
-                        {` • ${doc.date}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="icon" className="h-8 w-8">
-                        <Sparkles className="w-4 h-4" />
-                      </Button>
-                      <Button variant="outline" size="icon" className="h-8 w-8">
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
 

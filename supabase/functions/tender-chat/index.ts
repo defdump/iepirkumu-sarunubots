@@ -107,31 +107,38 @@ serve(async (req) => {
       }
     }
 
-    // Fallback: get chunks from ALL documents if semantic search didn't work
+    // Fallback: get limited chunks from documents if semantic search didn't work
     if (relevantChunks.length === 0) {
-      console.log("Semantic search unavailable, fetching chunks from all documents");
+      console.log("Semantic search unavailable, fetching limited chunks from documents");
       
-      // Get chunks from each document to ensure coverage
-      const { data: allChunks, error: allError } = await supabase
+      // Get distinct document names first
+      const { data: docs } = await supabase
         .from("document_chunks")
-        .select("document_name, content, chunk_index")
-        .order("chunk_index", { ascending: true })
-        .limit(150); // Increased limit to get all ~104 chunks
-
-      if (allError) {
-        console.error("All chunks error:", allError);
-      } else if (allChunks) {
-        console.log(`Fetched ${allChunks.length} total chunks`);
+        .select("document_name")
+        .limit(100);
+      
+      const uniqueDocNames = [...new Set(docs?.map(d => d.document_name) || [])];
+      console.log("Found documents:", uniqueDocNames);
+      
+      // Get first 8 chunks from each document for balanced coverage
+      const chunksPerDoc = 8;
+      const allChunks: any[] = [];
+      
+      for (const docName of uniqueDocNames) {
+        const { data: docChunks } = await supabase
+          .from("document_chunks")
+          .select("document_name, content, chunk_index")
+          .eq("document_name", docName)
+          .order("chunk_index", { ascending: true })
+          .limit(chunksPerDoc);
         
-        // Log which documents we got
-        const docCounts = allChunks.reduce((acc: Record<string, number>, chunk) => {
-          acc[chunk.document_name] = (acc[chunk.document_name] || 0) + 1;
-          return acc;
-        }, {});
-        console.log("Documents fetched:", JSON.stringify(docCounts));
-        
-        relevantChunks = allChunks;
+        if (docChunks) {
+          allChunks.push(...docChunks);
+        }
       }
+      
+      console.log(`Fetched ${allChunks.length} total chunks (${chunksPerDoc} per doc)`);
+      relevantChunks = allChunks;
     }
 
     // Build context string and track unique document names
